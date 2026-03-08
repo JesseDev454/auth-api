@@ -49,6 +49,17 @@ export class UserRepository {
     return this.findById(id, manager);
   }
 
+  public async updateLastLogin(id: string, manager?: EntityManager): Promise<User | null> {
+    const repository = this.getRepository(manager);
+
+    await repository.save({
+      id,
+      lastLoginAt: new Date(),
+    });
+
+    return this.findById(id, manager);
+  }
+
   public getBaseRepository(manager?: EntityManager): Repository<User> {
     return this.getRepository(manager);
   }

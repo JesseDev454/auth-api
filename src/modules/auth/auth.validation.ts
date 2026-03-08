@@ -16,6 +16,11 @@ const resendVerificationSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
 });
 
+const loginSchema = z.object({
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+  password: z.string().min(1),
+});
+
 const parseOrThrow = <T>(schema: z.ZodType<T>, input: unknown): T => {
   const result = schema.safeParse(input);
 
@@ -35,3 +40,5 @@ export const parseVerifyEmailRequest = (input: unknown) => parseOrThrow(verifyEm
 
 export const parseResendVerificationRequest = (input: unknown) =>
   parseOrThrow(resendVerificationSchema, input);
+
+export const parseLoginRequest = (input: unknown) => parseOrThrow(loginSchema, input);

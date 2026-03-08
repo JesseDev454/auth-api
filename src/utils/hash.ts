@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 
 const PASSWORD_SALT_ROUNDS = 12;
@@ -8,5 +9,8 @@ export const hashUtility = {
   },
   comparePassword(password: string, hashedValue: string): Promise<boolean> {
     return bcrypt.compare(password, hashedValue);
+  },
+  hashValue(value: string): string {
+    return crypto.createHash('sha256').update(value).digest('hex');
   },
 };

@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { buildSuccessResponse } from '../../utils/response';
 import { authService } from './auth.service';
 import {
+  parseLoginRequest,
   parseRegisterRequest,
   parseResendVerificationRequest,
   parseVerifyEmailRequest,
@@ -45,6 +46,16 @@ export class AuthController {
         {},
       ),
     );
+  }
+
+  public async login(request: Request, response: Response): Promise<void> {
+    const payload = parseLoginRequest(request.body);
+    const result = await authService.login(payload, {
+      ipAddress: request.ip || null,
+      userAgent: request.get('user-agent') ?? null,
+    });
+
+    response.status(200).json(buildSuccessResponse('Login successful', result));
   }
 }
 
