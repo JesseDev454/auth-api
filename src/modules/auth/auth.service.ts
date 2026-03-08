@@ -29,9 +29,21 @@ interface LoginInput {
   password: string;
 }
 
+interface RefreshInput {
+  refreshToken: string;
+}
+
+interface LogoutInput {
+  refreshToken: string;
+}
+
 interface LoginContext {
   ipAddress?: string | null;
   userAgent?: string | null;
+}
+
+interface LogoutContext {
+  userId: string;
 }
 
 interface AuthUserResponse {
@@ -55,6 +67,11 @@ interface LoginResponse {
     accessTokenExpiresIn: number;
     refreshTokenExpiresIn: number;
   };
+}
+
+interface RefreshResponse {
+  accessToken: string;
+  accessTokenExpiresIn: number;
 }
 
 export class AuthService {
@@ -206,27 +223,23 @@ export class AuthService {
     const user = await userRepository.findByEmail(input.email);
 
     if (!user) {
-      console.warn(`Login failed for ${input.email}: invalid credentials`);
-      throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      console.warn(`login_failure_user_not_found email=${input.email}`);
+      throw this.buildInvalidCredentialsError();
     }
 
     const isPasswordValid = await hashUtility.comparePassword(input.password, user.passwordHash);
 
     if (!isPasswordValid) {
-      console.warn(`Login failed for ${input.email}: invalid credentials`);
-      throw new AppError(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      console.warn(`login_failure_wrong_password email=${input.email}`);
+      throw this.buildInvalidCredentialsError();
     }
 
     if (!user.isEmailVerified) {
-      console.warn(`Login blocked for ${input.email}: email not verified`);
-      throw new AppError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email before logging in.');
+      console.warn(`login_failure_unverified_email email=${input.email}`);
+      throw this.buildInvalidCredentialsError();
     }
 
-    const accessToken = jwtUtility.signAccessToken({
-      userId: user.id,
-      role: user.role.name,
-      tokenType: 'access',
-    });
+    const accessToken = this.signAccessToken(user);
 
     const loginResult = await AppDataSource.transaction(async (manager) => {
       const refreshToken = tokenUtility.buildRefreshToken();
@@ -267,6 +280,81 @@ export class AuthService {
         refreshTokenExpiresIn: REFRESH_TOKEN_EXPIRES_IN_SECONDS,
       },
     };
+  }
+
+  public async refresh(input: RefreshInput): Promise<RefreshResponse> {
+    console.info('refresh_token_attempt');
+
+    const tokenHash = tokenUtility.hashToken(input.refreshToken);
+
+    const refreshResult = await AppDataSource.transaction(async (manager) => {
+      const refreshToken = await refreshTokenRepository.findByTokenHash(tokenHash, manager);
+
+      if (!refreshToken) {
+        console.warn('refresh_token_rejected reason=not_found');
+        throw this.buildInvalidRefreshTokenError();
+      }
+
+      if (refreshToken.revokedAt) {
+        console.warn(`refresh_token_rejected reason=revoked tokenId=${refreshToken.id}`);
+        throw this.buildInvalidRefreshTokenError();
+      }
+
+      if (refreshToken.expiresAt.getTime() <= Date.now()) {
+        console.warn(`refresh_token_rejected reason=expired tokenId=${refreshToken.id}`);
+        throw this.buildInvalidRefreshTokenError();
+      }
+
+      const user = await userRepository.findById(refreshToken.userId, manager);
+
+      if (!user) {
+        throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
+      }
+
+      await refreshTokenRepository.updateLastUsed(refreshToken.id, manager);
+
+      return {
+        accessToken: this.signAccessToken(user),
+        userId: user.id,
+      };
+    });
+
+    console.info(`refresh_token_success userId=${refreshResult.userId}`);
+
+    return {
+      accessToken: refreshResult.accessToken,
+      accessTokenExpiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+    };
+  }
+
+  public async logout(input: LogoutInput, context: LogoutContext): Promise<void> {
+    await AppDataSource.transaction(async (manager) => {
+      const tokenHash = tokenUtility.hashToken(input.refreshToken);
+      const refreshToken = await refreshTokenRepository.findByTokenHash(tokenHash, manager);
+
+      if (refreshToken && refreshToken.userId === context.userId && !refreshToken.revokedAt) {
+        await refreshTokenRepository.revoke(refreshToken.id, manager);
+        console.info(`logout_token_revoked userId=${context.userId} tokenId=${refreshToken.id}`);
+      }
+    });
+
+    console.info(`logout_success userId=${context.userId}`);
+  }
+
+  private signAccessToken(user: User): string {
+    return jwtUtility.signAccessToken({
+      userId: user.id,
+      role: user.role.name,
+      tokenType: 'access',
+    });
+  }
+
+  private buildInvalidCredentialsError(): AppError {
+    return new AppError(401, 'INVALID_CREDENTIALS', 'Invalid credentials', {});
+  }
+
+  private buildInvalidRefreshTokenError(): AppError {
+    return new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token', {});
   }
 
   private toAuthUserResponse(user: User): AuthUserResponse {

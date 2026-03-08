@@ -1,9 +1,12 @@
 import { Request, Response } from 'express';
 
+import { AppError } from '../../utils/appError';
 import { buildSuccessResponse } from '../../utils/response';
 import { authService } from './auth.service';
 import {
   parseLoginRequest,
+  parseLogoutRequest,
+  parseRefreshTokenRequest,
   parseRegisterRequest,
   parseResendVerificationRequest,
   parseVerifyEmailRequest,
@@ -56,6 +59,29 @@ export class AuthController {
     });
 
     response.status(200).json(buildSuccessResponse('Login successful', result));
+  }
+
+  public async refresh(request: Request, response: Response): Promise<void> {
+    const payload = parseRefreshTokenRequest(request.body);
+    const result = await authService.refresh(payload);
+
+    response
+      .status(200)
+      .json(buildSuccessResponse('Access token refreshed successfully', result));
+  }
+
+  public async logout(request: Request, response: Response): Promise<void> {
+    if (!request.user) {
+      throw new AppError(401, 'UNAUTHORIZED', 'Authentication is required.');
+    }
+
+    const payload = parseLogoutRequest(request.body);
+
+    await authService.logout(payload, {
+      userId: request.user.userId,
+    });
+
+    response.status(200).json(buildSuccessResponse('Logout successful', {}));
   }
 }
 

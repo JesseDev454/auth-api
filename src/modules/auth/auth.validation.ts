@@ -21,6 +21,10 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().trim().min(1),
+});
+
 const parseOrThrow = <T>(schema: z.ZodType<T>, input: unknown): T => {
   const result = schema.safeParse(input);
 
@@ -42,3 +46,7 @@ export const parseResendVerificationRequest = (input: unknown) =>
   parseOrThrow(resendVerificationSchema, input);
 
 export const parseLoginRequest = (input: unknown) => parseOrThrow(loginSchema, input);
+
+export const parseRefreshTokenRequest = (input: unknown) => parseOrThrow(refreshTokenSchema, input);
+
+export const parseLogoutRequest = (input: unknown) => parseOrThrow(refreshTokenSchema, input);
