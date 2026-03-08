@@ -35,6 +35,7 @@ export const env = {
     password: getStringEnv('DB_PASSWORD'),
     database: getStringEnv('DB_NAME'),
   },
+  appBaseUrl: getStringEnv('APP_BASE_URL', 'https://yourapp.com'),
   jwt: {
     accessSecret: getStringEnv('JWT_ACCESS_SECRET'),
     refreshSecret: getStringEnv('JWT_REFRESH_SECRET'),

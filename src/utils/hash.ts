@@ -1,11 +1,12 @@
+import bcrypt from 'bcrypt';
+
+const PASSWORD_SALT_ROUNDS = 12;
+
 export const hashUtility = {
-  async hashPassword(password: string): Promise<string> {
-    void password;
-    throw new Error('Hashing utilities are scaffolded in Sprint 1 and will be implemented later.');
+  hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, PASSWORD_SALT_ROUNDS);
   },
-  async comparePassword(password: string, hashedValue: string): Promise<boolean> {
-    void password;
-    void hashedValue;
-    throw new Error('Hashing utilities are scaffolded in Sprint 1 and will be implemented later.');
+  comparePassword(password: string, hashedValue: string): Promise<boolean> {
+    return bcrypt.compare(password, hashedValue);
   },
 };

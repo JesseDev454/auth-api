@@ -1,23 +1,23 @@
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { AppDataSource } from '../config/database';
 import { Role } from '../entities/Role';
 
 export class RoleRepository {
-  private get repository(): Repository<Role> {
-    return AppDataSource.getRepository(Role);
+  private getRepository(manager?: EntityManager): Repository<Role> {
+    return manager ? manager.getRepository(Role) : AppDataSource.getRepository(Role);
   }
 
-  public findById(id: string): Promise<Role | null> {
-    return this.repository.findOne({ where: { id } });
+  public findById(id: string, manager?: EntityManager): Promise<Role | null> {
+    return this.getRepository(manager).findOne({ where: { id } });
   }
 
-  public findByName(name: string): Promise<Role | null> {
-    return this.repository.findOne({ where: { name } });
+  public findByName(name: string, manager?: EntityManager): Promise<Role | null> {
+    return this.getRepository(manager).findOne({ where: { name } });
   }
 
-  public getBaseRepository(): Repository<Role> {
-    return this.repository;
+  public getBaseRepository(manager?: EntityManager): Repository<Role> {
+    return this.getRepository(manager);
   }
 }
 
