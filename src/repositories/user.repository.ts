@@ -75,6 +75,36 @@ export class UserRepository {
     return this.findById(id, manager);
   }
 
+  public async listUsersPaginated(
+    options: { page: number; limit: number },
+    manager?: EntityManager,
+  ): Promise<{ users: User[]; total: number }> {
+    const repository = this.getRepository(manager);
+    const [users, total] = await repository.findAndCount({
+      relations: { role: true },
+      order: { createdAt: 'DESC' },
+      skip: (options.page - 1) * options.limit,
+      take: options.limit,
+    });
+
+    return { users, total };
+  }
+
+  public async updateUserRole(
+    id: string,
+    roleId: string,
+    manager?: EntityManager,
+  ): Promise<User | null> {
+    const repository = this.getRepository(manager);
+
+    await repository.save({
+      id,
+      roleId,
+    });
+
+    return this.findById(id, manager);
+  }
+
   public getBaseRepository(manager?: EntityManager): Repository<User> {
     return this.getRepository(manager);
   }
