@@ -1,4 +1,5 @@
 import { User } from '../../entities/User';
+import { refreshTokenRepository } from '../../repositories/refreshToken.repository';
 import { userRepository } from '../../repositories/user.repository';
 import { AppError } from '../../utils/appError';
 
@@ -10,6 +11,16 @@ interface UserProfileResponse {
   isEmailVerified: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+interface UserSessionResponse {
+  id: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdByIp: string | null;
+  userAgent: string | null;
 }
 
 export class UserService {
@@ -29,6 +40,53 @@ export class UserService {
     return {
       user: this.toUserProfileResponse(user),
     };
+  }
+
+  public async listSessions(userId: string): Promise<{ sessions: UserSessionResponse[] }> {
+    console.info(`session_list_requested userId=${userId}`);
+
+    const user = await userRepository.findById(userId);
+
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
+    }
+
+    const sessions = await refreshTokenRepository.listSessionsForUser(userId);
+
+    return {
+      sessions: sessions.map((session) => ({
+        id: session.id,
+        createdAt: session.createdAt.toISOString(),
+        lastUsedAt: session.lastUsedAt ? session.lastUsedAt.toISOString() : null,
+        expiresAt: session.expiresAt.toISOString(),
+        revokedAt: session.revokedAt ? session.revokedAt.toISOString() : null,
+        createdByIp: session.createdByIp,
+        userAgent: session.userAgent,
+      })),
+    };
+  }
+
+  public async revokeSession(userId: string, sessionId: string): Promise<void> {
+    const session = await refreshTokenRepository.findById(sessionId);
+
+    if (!session) {
+      throw new AppError(404, 'SESSION_NOT_FOUND', 'Session not found.');
+    }
+
+    if (session.userId !== userId) {
+      console.warn(
+        `session_revoke_forbidden userId=${userId} sessionId=${sessionId} ownerUserId=${session.userId}`,
+      );
+      throw new AppError(403, 'FORBIDDEN', 'Forbidden');
+    }
+
+    if (!session.revokedAt) {
+      await refreshTokenRepository.revoke(session.id);
+    }
+
+    console.info(
+      `session_revoked userId=${userId} sessionId=${session.id} alreadyRevoked=${String(Boolean(session.revokedAt))}`,
+    );
   }
 
   private toUserProfileResponse(user: User): UserProfileResponse {

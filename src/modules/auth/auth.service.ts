@@ -56,6 +56,11 @@ interface LoginContext {
   userAgent?: string | null;
 }
 
+interface RefreshContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
 interface LogoutContext {
   userId: string;
 }
@@ -85,7 +90,9 @@ interface LoginResponse {
 
 interface RefreshResponse {
   accessToken: string;
+  refreshToken: string;
   accessTokenExpiresIn: number;
+  refreshTokenExpiresIn: number;
 }
 
 export class AuthService {
@@ -296,48 +303,71 @@ export class AuthService {
     };
   }
 
-  public async refresh(input: RefreshInput): Promise<RefreshResponse> {
+  public async refresh(input: RefreshInput, context: RefreshContext): Promise<RefreshResponse> {
     console.info('refresh_token_attempt');
 
     const tokenHash = tokenUtility.hashToken(input.refreshToken);
 
+    const existingRefreshToken = await refreshTokenRepository.findByTokenHash(tokenHash);
+
+    if (!existingRefreshToken) {
+      console.warn('refresh_token_rejected reason=not_found');
+      throw this.buildInvalidRefreshTokenError();
+    }
+
+    if (existingRefreshToken.revokedAt) {
+      console.warn(
+        `refresh_token_reuse_detected userId=${existingRefreshToken.userId} tokenId=${existingRefreshToken.id} ip=${context.ipAddress ?? 'unknown'} userAgent=${context.userAgent ?? 'unknown'}`,
+      );
+      const revokedSessionCount = await refreshTokenRepository.revokeActiveForUser(
+        existingRefreshToken.userId,
+      );
+      console.warn(
+        `refresh_token_reuse_global_revocation userId=${existingRefreshToken.userId} count=${revokedSessionCount}`,
+      );
+      throw this.buildInvalidRefreshTokenError();
+    }
+
+    if (existingRefreshToken.expiresAt.getTime() <= Date.now()) {
+      console.warn(`refresh_token_rejected reason=expired tokenId=${existingRefreshToken.id}`);
+      throw this.buildInvalidRefreshTokenError();
+    }
+
     const refreshResult = await AppDataSource.transaction(async (manager) => {
-      const refreshToken = await refreshTokenRepository.findByTokenHash(tokenHash, manager);
-
-      if (!refreshToken) {
-        console.warn('refresh_token_rejected reason=not_found');
-        throw this.buildInvalidRefreshTokenError();
-      }
-
-      if (refreshToken.revokedAt) {
-        console.warn(`refresh_token_rejected reason=revoked tokenId=${refreshToken.id}`);
-        throw this.buildInvalidRefreshTokenError();
-      }
-
-      if (refreshToken.expiresAt.getTime() <= Date.now()) {
-        console.warn(`refresh_token_rejected reason=expired tokenId=${refreshToken.id}`);
-        throw this.buildInvalidRefreshTokenError();
-      }
-
-      const user = await userRepository.findById(refreshToken.userId, manager);
+      const user = await userRepository.findById(existingRefreshToken.userId, manager);
 
       if (!user) {
         throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
       }
 
-      await refreshTokenRepository.updateLastUsed(refreshToken.id, manager);
+      const rotatedRefreshToken = tokenUtility.buildRefreshToken();
+
+      await refreshTokenRepository.create(
+        {
+          userId: user.id,
+          tokenHash: rotatedRefreshToken.tokenHash,
+          expiresAt: rotatedRefreshToken.expiresAt,
+          createdByIp: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+        manager,
+      );
+      await refreshTokenRepository.revokeAndTrackUsage(existingRefreshToken.id, manager);
 
       return {
         accessToken: this.signAccessToken(user),
+        refreshToken: rotatedRefreshToken.rawToken,
         userId: user.id,
       };
     });
 
-    console.info(`refresh_token_success userId=${refreshResult.userId}`);
+    console.info(`refresh_token_rotation_success userId=${refreshResult.userId}`);
 
     return {
       accessToken: refreshResult.accessToken,
+      refreshToken: refreshResult.refreshToken,
       accessTokenExpiresIn: ACCESS_TOKEN_EXPIRES_IN_SECONDS,
+      refreshTokenExpiresIn: REFRESH_TOKEN_EXPIRES_IN_SECONDS,
     };
   }
 

@@ -65,11 +65,12 @@ export class AuthController {
 
   public async refresh(request: Request, response: Response): Promise<void> {
     const payload = parseRefreshTokenRequest(request.body);
-    const result = await authService.refresh(payload);
+    const result = await authService.refresh(payload, {
+      ipAddress: request.ip || null,
+      userAgent: request.get('user-agent') ?? null,
+    });
 
-    response
-      .status(200)
-      .json(buildSuccessResponse('Access token refreshed successfully', result));
+    response.status(200).json(buildSuccessResponse('Tokens refreshed successfully', result));
   }
 
   public async logout(request: Request, response: Response): Promise<void> {

@@ -29,10 +29,39 @@ export class RefreshTokenRepository {
     return repository.save(refreshToken);
   }
 
+  public findById(id: string, manager?: EntityManager): Promise<RefreshToken | null> {
+    return this.getRepository(manager).findOne({
+      where: { id },
+      relations: { user: true },
+    });
+  }
+
+  public listSessionsForUser(userId: string, manager?: EntityManager): Promise<RefreshToken[]> {
+    return this.getRepository(manager).find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   public async updateLastUsed(id: string, manager?: EntityManager): Promise<RefreshToken | null> {
     const repository = this.getRepository(manager);
 
     await repository.update({ id }, { lastUsedAt: new Date() });
+
+    return repository.findOne({
+      where: { id },
+      relations: { user: true },
+    });
+  }
+
+  public async revokeAndTrackUsage(
+    id: string,
+    manager?: EntityManager,
+  ): Promise<RefreshToken | null> {
+    const repository = this.getRepository(manager);
+    const timestamp = new Date();
+
+    await repository.update({ id }, { revokedAt: timestamp, lastUsedAt: timestamp });
 
     return repository.findOne({
       where: { id },
