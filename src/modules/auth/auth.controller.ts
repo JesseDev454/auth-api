@@ -4,10 +4,12 @@ import { AppError } from '../../utils/appError';
 import { buildSuccessResponse } from '../../utils/response';
 import { authService } from './auth.service';
 import {
+  parseForgotPasswordRequest,
   parseLoginRequest,
   parseLogoutRequest,
   parseRefreshTokenRequest,
   parseRegisterRequest,
+  parseResetPasswordRequest,
   parseResendVerificationRequest,
   parseVerifyEmailRequest,
 } from './auth.validation';
@@ -82,6 +84,27 @@ export class AuthController {
     });
 
     response.status(200).json(buildSuccessResponse('Logout successful', {}));
+  }
+
+  public async forgotPassword(request: Request, response: Response): Promise<void> {
+    const payload = parseForgotPasswordRequest(request.body);
+
+    await authService.forgotPassword(payload);
+
+    response.status(200).json(
+      buildSuccessResponse(
+        'If an account with that email exists, a password reset email has been sent',
+        {},
+      ),
+    );
+  }
+
+  public async resetPassword(request: Request, response: Response): Promise<void> {
+    const payload = parseResetPasswordRequest(request.body);
+
+    await authService.resetPassword(payload);
+
+    response.status(200).json(buildSuccessResponse('Password reset successful', {}));
   }
 }
 

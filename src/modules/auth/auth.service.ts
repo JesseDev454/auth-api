@@ -1,14 +1,19 @@
 import { User } from '../../entities/User';
 import { AppDataSource } from '../../config/database';
+import { sendPasswordResetEmail } from '../../mails/sendPasswordResetEmail';
 import { sendVerificationEmail } from '../../mails/sendVerificationEmail';
 import { emailVerificationTokenRepository } from '../../repositories/emailVerificationToken.repository';
+import { passwordResetTokenRepository } from '../../repositories/passwordResetToken.repository';
 import { refreshTokenRepository } from '../../repositories/refreshToken.repository';
 import { roleRepository } from '../../repositories/role.repository';
 import { userRepository } from '../../repositories/user.repository';
 import { AppError } from '../../utils/appError';
 import { hashUtility } from '../../utils/hash';
 import { ACCESS_TOKEN_EXPIRES_IN_SECONDS, jwtUtility } from '../../utils/jwt';
-import { REFRESH_TOKEN_EXPIRES_IN_SECONDS, tokenUtility } from '../../utils/token';
+import {
+  REFRESH_TOKEN_EXPIRES_IN_SECONDS,
+  tokenUtility,
+} from '../../utils/token';
 
 interface RegisterInput {
   fullName: string;
@@ -35,6 +40,15 @@ interface RefreshInput {
 
 interface LogoutInput {
   refreshToken: string;
+}
+
+interface ForgotPasswordInput {
+  email: string;
+}
+
+interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
 }
 
 interface LoginContext {
@@ -341,6 +355,98 @@ export class AuthService {
     console.info(`logout_success userId=${context.userId}`);
   }
 
+  public async forgotPassword(input: ForgotPasswordInput): Promise<void> {
+    console.info(`forgot_password_requested email=${input.email}`);
+
+    const user = await userRepository.findByEmail(input.email);
+
+    if (!user) {
+      console.info(`forgot_password_unknown_email email=${input.email}`);
+      return;
+    }
+
+    const rawToken = await AppDataSource.transaction(async (manager) => {
+      await passwordResetTokenRepository.invalidateUnusedForUser(user.id, manager);
+
+      const resetToken = tokenUtility.buildPasswordResetToken();
+
+      await passwordResetTokenRepository.create(
+        {
+          userId: user.id,
+          tokenHash: resetToken.tokenHash,
+          expiresAt: resetToken.expiresAt,
+        },
+        manager,
+      );
+
+      return resetToken.rawToken;
+    });
+
+    await sendPasswordResetEmail(
+      {
+        email: user.email,
+        fullName: user.fullName,
+      },
+      rawToken,
+    );
+
+    console.info(`password_reset_email_sent email=${user.email}`);
+  }
+
+  public async resetPassword(input: ResetPasswordInput): Promise<void> {
+    const tokenHash = tokenUtility.hashToken(input.token);
+
+    const resetResult = await AppDataSource.transaction(async (manager) => {
+      const passwordResetToken = await passwordResetTokenRepository.findByTokenHash(tokenHash, manager);
+
+      if (!passwordResetToken) {
+        console.warn('password_reset_token_invalid reason=not_found');
+        throw this.buildInvalidPasswordResetTokenError();
+      }
+
+      if (passwordResetToken.usedAt) {
+        console.warn(`password_reset_token_invalid reason=used tokenId=${passwordResetToken.id}`);
+        throw this.buildInvalidPasswordResetTokenError();
+      }
+
+      if (passwordResetToken.expiresAt.getTime() <= Date.now()) {
+        console.warn(`password_reset_token_expired tokenId=${passwordResetToken.id}`);
+        throw this.buildInvalidPasswordResetTokenError();
+      }
+
+      const user = await userRepository.findById(passwordResetToken.userId, manager);
+
+      if (!user) {
+        throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
+      }
+
+      const passwordHash = await hashUtility.hashPassword(input.newPassword);
+      const updatedUser = await userRepository.updatePassword(user.id, passwordHash, manager);
+
+      if (!updatedUser) {
+        throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
+      }
+
+      await passwordResetTokenRepository.markUsed(passwordResetToken.id, manager);
+      await passwordResetTokenRepository.invalidateUnusedForUser(user.id, manager);
+
+      const revokedRefreshTokenCount = await refreshTokenRepository.revokeActiveForUser(
+        user.id,
+        manager,
+      );
+
+      return {
+        userId: user.id,
+        revokedRefreshTokenCount,
+      };
+    });
+
+    console.info(
+      `password_reset_refresh_tokens_revoked userId=${resetResult.userId} count=${resetResult.revokedRefreshTokenCount}`,
+    );
+    console.info(`password_reset_success userId=${resetResult.userId}`);
+  }
+
   private signAccessToken(user: User): string {
     return jwtUtility.signAccessToken({
       userId: user.id,
@@ -355,6 +461,15 @@ export class AuthService {
 
   private buildInvalidRefreshTokenError(): AppError {
     return new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token', {});
+  }
+
+  private buildInvalidPasswordResetTokenError(): AppError {
+    return new AppError(
+      401,
+      'INVALID_PASSWORD_RESET_TOKEN',
+      'Invalid password reset token',
+      {},
+    );
   }
 
   private toAuthUserResponse(user: User): AuthUserResponse {

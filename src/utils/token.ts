@@ -4,12 +4,14 @@ import { hashUtility } from './hash';
 
 const DEFAULT_TOKEN_BYTES = 32;
 const EMAIL_VERIFICATION_TTL_HOURS = 24;
+const PASSWORD_RESET_TOKEN_TTL_HOURS = 1;
 const REFRESH_TOKEN_TTL_DAYS = 7;
 
 type ExpiryUnit = 'hours' | 'days';
 
 export const EMAIL_VERIFICATION_TOKEN_EXPIRES_IN_SECONDS =
   EMAIL_VERIFICATION_TTL_HOURS * 60 * 60;
+export const PASSWORD_RESET_TOKEN_EXPIRES_IN_SECONDS = PASSWORD_RESET_TOKEN_TTL_HOURS * 60 * 60;
 export const REFRESH_TOKEN_EXPIRES_IN_SECONDS = REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60;
 
 const generateOpaqueToken = (size = DEFAULT_TOKEN_BYTES): string => {
@@ -40,6 +42,20 @@ const buildEmailVerificationToken = (): {
   };
 };
 
+const buildPasswordResetToken = (): {
+  rawToken: string;
+  tokenHash: string;
+  expiresAt: Date;
+} => {
+  const rawToken = generateOpaqueToken();
+
+  return {
+    rawToken,
+    tokenHash: hashToken(rawToken),
+    expiresAt: generateTokenExpiry(PASSWORD_RESET_TOKEN_TTL_HOURS, 'hours'),
+  };
+};
+
 const generateRefreshToken = (size = DEFAULT_TOKEN_BYTES): string => {
   return generateOpaqueToken(size);
 };
@@ -64,5 +80,6 @@ export const tokenUtility = {
   generateTokenExpiry,
   hashToken,
   buildEmailVerificationToken,
+  buildPasswordResetToken,
   buildRefreshToken,
 };

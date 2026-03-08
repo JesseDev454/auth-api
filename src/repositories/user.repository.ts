@@ -60,6 +60,21 @@ export class UserRepository {
     return this.findById(id, manager);
   }
 
+  public async updatePassword(
+    id: string,
+    passwordHash: string,
+    manager?: EntityManager,
+  ): Promise<User | null> {
+    const repository = this.getRepository(manager);
+
+    await repository.save({
+      id,
+      passwordHash,
+    });
+
+    return this.findById(id, manager);
+  }
+
   public getBaseRepository(manager?: EntityManager): Repository<User> {
     return this.getRepository(manager);
   }

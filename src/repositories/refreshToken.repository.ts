@@ -51,6 +51,19 @@ export class RefreshTokenRepository {
     });
   }
 
+  public async revokeActiveForUser(userId: string, manager?: EntityManager): Promise<number> {
+    const repository = this.getRepository(manager);
+    const result = await repository
+      .createQueryBuilder()
+      .update(RefreshToken)
+      .set({ revokedAt: new Date() })
+      .where('user_id = :userId', { userId })
+      .andWhere('revoked_at IS NULL')
+      .execute();
+
+    return result.affected ?? 0;
+  }
+
   public getBaseRepository(manager?: EntityManager): Repository<RefreshToken> {
     return this.getRepository(manager);
   }

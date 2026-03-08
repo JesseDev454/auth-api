@@ -25,6 +25,15 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().trim().min(1),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  newPassword: z.string().min(8),
+});
+
 const parseOrThrow = <T>(schema: z.ZodType<T>, input: unknown): T => {
   const result = schema.safeParse(input);
 
@@ -50,3 +59,9 @@ export const parseLoginRequest = (input: unknown) => parseOrThrow(loginSchema, i
 export const parseRefreshTokenRequest = (input: unknown) => parseOrThrow(refreshTokenSchema, input);
 
 export const parseLogoutRequest = (input: unknown) => parseOrThrow(refreshTokenSchema, input);
+
+export const parseForgotPasswordRequest = (input: unknown) =>
+  parseOrThrow(forgotPasswordSchema, input);
+
+export const parseResetPasswordRequest = (input: unknown) =>
+  parseOrThrow(resetPasswordSchema, input);
