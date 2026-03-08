@@ -2,6 +2,13 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({
+    path: '.env.test',
+    override: true,
+  });
+}
+
 type NodeEnv = 'development' | 'test' | 'production';
 
 const getStringEnv = (name: string, fallback?: string): string => {

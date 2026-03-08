@@ -1,11 +1,13 @@
 import rateLimit from 'express-rate-limit';
 
+import { env } from '../config/env';
 import { buildErrorResponse } from '../utils/response';
 
 const createRateLimitHandler = (message: string, code: string) => {
   return rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
+    skip: () => env.nodeEnv === 'test',
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_request, response) => {
@@ -22,6 +24,7 @@ export const globalRateLimiter = createRateLimitHandler(
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  skip: () => env.nodeEnv === 'test',
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_request, response) => {
