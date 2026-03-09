@@ -2,6 +2,7 @@ import { User } from '../../entities/User';
 import { roleRepository } from '../../repositories/role.repository';
 import { userRepository } from '../../repositories/user.repository';
 import { AppError } from '../../utils/appError';
+import { logger } from '../../utils/logger';
 
 interface ListUsersInput {
   page: number;
@@ -37,8 +38,15 @@ export class AdminService {
   }> {
     const result = await userRepository.listUsersPaginated(input);
 
-    console.info(
-      `admin_users_listed adminUserId=${adminUserId} page=${input.page} limit=${input.limit} total=${result.total}`,
+    logger.info(
+      {
+        event: 'admin_users_listed',
+        adminUserId,
+        page: input.page,
+        limit: input.limit,
+        total: result.total,
+      },
+      'Admin user list fetched.',
     );
 
     return {
@@ -57,15 +65,27 @@ export class AdminService {
     const targetUser = await userRepository.findById(input.targetUserId);
 
     if (!targetUser) {
-      console.warn(
-        `admin_role_update_attempt_failed adminUserId=${input.adminUserId} targetUserId=${input.targetUserId} reason=user_not_found`,
+      logger.warn(
+        {
+          event: 'admin_role_update_attempt_failed',
+          adminUserId: input.adminUserId,
+          targetUserId: input.targetUserId,
+          reason: 'user_not_found',
+        },
+        'Admin role update failed.',
       );
       throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
     }
 
     if (input.adminUserId === input.targetUserId && input.role === 'user') {
-      console.warn(
-        `admin_role_update_attempt_failed adminUserId=${input.adminUserId} targetUserId=${input.targetUserId} reason=cannot_remove_own_admin_role`,
+      logger.warn(
+        {
+          event: 'admin_role_update_attempt_failed',
+          adminUserId: input.adminUserId,
+          targetUserId: input.targetUserId,
+          reason: 'cannot_remove_own_admin_role',
+        },
+        'Admin role update failed.',
       );
       throw new AppError(403, 'FORBIDDEN', 'You cannot remove your own admin role.', {
         reason: 'CANNOT_REMOVE_OWN_ADMIN_ROLE',
@@ -75,8 +95,14 @@ export class AdminService {
     const targetRole = await roleRepository.findByName(input.role);
 
     if (!targetRole) {
-      console.warn(
-        `admin_role_update_attempt_failed adminUserId=${input.adminUserId} targetUserId=${input.targetUserId} reason=role_not_configured`,
+      logger.warn(
+        {
+          event: 'admin_role_update_attempt_failed',
+          adminUserId: input.adminUserId,
+          targetUserId: input.targetUserId,
+          reason: 'role_not_configured',
+        },
+        'Admin role update failed.',
       );
       throw new AppError(500, 'INTERNAL_SERVER_ERROR', 'The requested role is not configured.');
     }
@@ -84,14 +110,26 @@ export class AdminService {
     const updatedUser = await userRepository.updateUserRole(targetUser.id, targetRole.id);
 
     if (!updatedUser) {
-      console.warn(
-        `admin_role_update_attempt_failed adminUserId=${input.adminUserId} targetUserId=${input.targetUserId} reason=user_not_found_after_update`,
+      logger.warn(
+        {
+          event: 'admin_role_update_attempt_failed',
+          adminUserId: input.adminUserId,
+          targetUserId: input.targetUserId,
+          reason: 'user_not_found_after_update',
+        },
+        'Admin role update failed.',
       );
       throw new AppError(404, 'USER_NOT_FOUND', 'User not found.');
     }
 
-    console.info(
-      `admin_role_updated adminUserId=${input.adminUserId} targetUserId=${updatedUser.id} role=${updatedUser.role.name}`,
+    logger.info(
+      {
+        event: 'admin_role_updated',
+        adminUserId: input.adminUserId,
+        targetUserId: updatedUser.id,
+        role: updatedUser.role.name,
+      },
+      'Admin role updated.',
     );
 
     return {

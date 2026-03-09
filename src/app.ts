@@ -1,14 +1,16 @@
 import cors from 'cors';
 import express, { Application } from 'express';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 
+import { swaggerSpec } from './config/swagger';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
-import { authRateLimiter, globalRateLimiter } from './middlewares/rateLimiter';
+import { globalRateLimiter } from './middlewares/rateLimiter';
 import { requestLogger } from './middlewares/requestLogger';
 import { adminRouter } from './modules/admin/admin.routes';
 import { authRouter } from './modules/auth/auth.routes';
+import { healthRouter } from './modules/health/health.routes';
 import { userRouter } from './modules/users/user.routes';
-import { buildSuccessResponse } from './utils/response';
 
 export const createApp = (): Application => {
   const app = express();
@@ -21,15 +23,9 @@ export const createApp = (): Application => {
   app.use(requestLogger);
   app.use(globalRateLimiter);
 
-  app.get('/api/v1/health', (_request, response) => {
-    response.status(200).json(
-      buildSuccessResponse('Authentication API is running.', {
-        status: 'ok',
-      }),
-    );
-  });
-
-  app.use('/api/v1/auth', authRateLimiter, authRouter);
+  app.use(healthRouter);
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
+  app.use('/api/v1/auth', authRouter);
   app.use('/api/v1/users', userRouter);
   app.use('/api/v1/admin', adminRouter);
 

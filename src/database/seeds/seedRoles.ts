@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 
 import { AppDataSource } from '../../config/database';
 import { Role } from '../../entities/Role';
+import { logger, serializeError } from '../../utils/logger';
 
 export const DEFAULT_ROLES: Array<Pick<Role, 'name' | 'description'>> = [
   {
@@ -25,13 +26,25 @@ export const seedDefaultRoles = async (dataSource: DataSource = AppDataSource): 
 const seedRoles = async (): Promise<void> => {
   await AppDataSource.initialize();
   await seedDefaultRoles(AppDataSource);
-  console.info('Default roles seeded successfully.');
+  logger.info(
+    {
+      event: 'roles_seeded',
+      count: DEFAULT_ROLES.length,
+    },
+    'Default roles seeded successfully.',
+  );
 };
 
 if (require.main === module) {
   void seedRoles()
     .catch((error: unknown) => {
-      console.error('Failed to seed default roles.', error);
+      logger.error(
+        {
+          event: 'roles_seed_failed',
+          error: serializeError(error),
+        },
+        'Failed to seed default roles.',
+      );
       process.exitCode = 1;
     })
     .finally(async () => {

@@ -10,6 +10,7 @@ import { userRepository } from '../../repositories/user.repository';
 import { AppError } from '../../utils/appError';
 import { hashUtility } from '../../utils/hash';
 import { ACCESS_TOKEN_EXPIRES_IN_SECONDS, jwtUtility } from '../../utils/jwt';
+import { logger } from '../../utils/logger';
 import {
   REFRESH_TOKEN_EXPIRES_IN_SECONDS,
   tokenUtility,
@@ -153,7 +154,14 @@ export class AuthService {
       };
     });
 
-    console.info(`User registration successful for ${registrationResult.user.email}`);
+    logger.info(
+      {
+        event: 'user_registration_success',
+        email: registrationResult.user.email,
+        userId: registrationResult.user.id,
+      },
+      'User registration successful.',
+    );
 
     await sendVerificationEmail(
       {
@@ -201,7 +209,14 @@ export class AuthService {
 
       await emailVerificationTokenRepository.invalidateUnusedForUser(verificationToken.userId, manager);
 
-      console.info(`Email verification successful for ${verifiedUser.email}`);
+      logger.info(
+        {
+          event: 'email_verification_success',
+          email: verifiedUser.email,
+          userId: verifiedUser.id,
+        },
+        'Email verification successful.',
+      );
     });
   }
 
@@ -239,24 +254,52 @@ export class AuthService {
   }
 
   public async login(input: LoginInput, context: LoginContext): Promise<LoginResponse> {
-    console.info(`Login attempt for ${input.email}`);
+    logger.info(
+      {
+        event: 'login_attempt',
+        email: input.email,
+        ipAddress: context.ipAddress ?? null,
+        userAgent: context.userAgent ?? null,
+      },
+      'Login attempt received.',
+    );
 
     const user = await userRepository.findByEmail(input.email);
 
     if (!user) {
-      console.warn(`login_failure_user_not_found email=${input.email}`);
+      logger.warn(
+        {
+          event: 'login_failure_user_not_found',
+          email: input.email,
+        },
+        'Login failed.',
+      );
       throw this.buildInvalidCredentialsError();
     }
 
     const isPasswordValid = await hashUtility.comparePassword(input.password, user.passwordHash);
 
     if (!isPasswordValid) {
-      console.warn(`login_failure_wrong_password email=${input.email}`);
+      logger.warn(
+        {
+          event: 'login_failure_wrong_password',
+          email: input.email,
+          userId: user.id,
+        },
+        'Login failed.',
+      );
       throw this.buildInvalidCredentialsError();
     }
 
     if (!user.isEmailVerified) {
-      console.warn(`login_failure_unverified_email email=${input.email}`);
+      logger.warn(
+        {
+          event: 'login_failure_unverified_email',
+          email: input.email,
+          userId: user.id,
+        },
+        'Login failed.',
+      );
       throw this.buildInvalidCredentialsError();
     }
 
@@ -276,7 +319,16 @@ export class AuthService {
         manager,
       );
 
-      console.info(`Refresh token persisted for ${user.email}`);
+      logger.info(
+        {
+          event: 'refresh_token_persisted',
+          email: user.email,
+          userId: user.id,
+          ipAddress: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+        'Refresh token persisted.',
+      );
 
       const updatedUser = await userRepository.updateLastLogin(user.id, manager);
 
@@ -290,7 +342,14 @@ export class AuthService {
       };
     });
 
-    console.info(`Login successful for ${loginResult.user.email}`);
+    logger.info(
+      {
+        event: 'login_success',
+        email: loginResult.user.email,
+        userId: loginResult.user.id,
+      },
+      'Login successful.',
+    );
 
     return {
       user: loginResult.user,
@@ -304,32 +363,67 @@ export class AuthService {
   }
 
   public async refresh(input: RefreshInput, context: RefreshContext): Promise<RefreshResponse> {
-    console.info('refresh_token_attempt');
+    logger.info(
+      {
+        event: 'refresh_token_attempt',
+        ipAddress: context.ipAddress ?? null,
+        userAgent: context.userAgent ?? null,
+      },
+      'Refresh token attempt received.',
+    );
 
     const tokenHash = tokenUtility.hashToken(input.refreshToken);
 
     const existingRefreshToken = await refreshTokenRepository.findByTokenHash(tokenHash);
 
     if (!existingRefreshToken) {
-      console.warn('refresh_token_rejected reason=not_found');
+      logger.warn(
+        {
+          event: 'refresh_token_rejected',
+          reason: 'not_found',
+          ipAddress: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+        'Refresh token rejected.',
+      );
       throw this.buildInvalidRefreshTokenError();
     }
 
     if (existingRefreshToken.revokedAt) {
-      console.warn(
-        `refresh_token_reuse_detected userId=${existingRefreshToken.userId} tokenId=${existingRefreshToken.id} ip=${context.ipAddress ?? 'unknown'} userAgent=${context.userAgent ?? 'unknown'}`,
+      logger.warn(
+        {
+          event: 'refresh_token_reuse_detected',
+          userId: existingRefreshToken.userId,
+          tokenId: existingRefreshToken.id,
+          ipAddress: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+        'Refresh token reuse detected.',
       );
       const revokedSessionCount = await refreshTokenRepository.revokeActiveForUser(
         existingRefreshToken.userId,
       );
-      console.warn(
-        `refresh_token_reuse_global_revocation userId=${existingRefreshToken.userId} count=${revokedSessionCount}`,
+      logger.warn(
+        {
+          event: 'refresh_token_reuse_global_revocation',
+          userId: existingRefreshToken.userId,
+          revokedSessionCount,
+        },
+        'Active sessions revoked after refresh token reuse.',
       );
       throw this.buildInvalidRefreshTokenError();
     }
 
     if (existingRefreshToken.expiresAt.getTime() <= Date.now()) {
-      console.warn(`refresh_token_rejected reason=expired tokenId=${existingRefreshToken.id}`);
+      logger.warn(
+        {
+          event: 'refresh_token_rejected',
+          reason: 'expired',
+          tokenId: existingRefreshToken.id,
+          userId: existingRefreshToken.userId,
+        },
+        'Refresh token rejected.',
+      );
       throw this.buildInvalidRefreshTokenError();
     }
 
@@ -361,7 +455,13 @@ export class AuthService {
       };
     });
 
-    console.info(`refresh_token_rotation_success userId=${refreshResult.userId}`);
+    logger.info(
+      {
+        event: 'refresh_token_rotation_success',
+        userId: refreshResult.userId,
+      },
+      'Refresh token rotation successful.',
+    );
 
     return {
       accessToken: refreshResult.accessToken,
@@ -378,20 +478,45 @@ export class AuthService {
 
       if (refreshToken && refreshToken.userId === context.userId && !refreshToken.revokedAt) {
         await refreshTokenRepository.revoke(refreshToken.id, manager);
-        console.info(`logout_token_revoked userId=${context.userId} tokenId=${refreshToken.id}`);
+        logger.info(
+          {
+            event: 'logout_token_revoked',
+            userId: context.userId,
+            tokenId: refreshToken.id,
+          },
+          'Refresh token revoked during logout.',
+        );
       }
     });
 
-    console.info(`logout_success userId=${context.userId}`);
+    logger.info(
+      {
+        event: 'logout_success',
+        userId: context.userId,
+      },
+      'Logout successful.',
+    );
   }
 
   public async forgotPassword(input: ForgotPasswordInput): Promise<void> {
-    console.info(`forgot_password_requested email=${input.email}`);
+    logger.info(
+      {
+        event: 'forgot_password_requested',
+        email: input.email,
+      },
+      'Forgot-password request received.',
+    );
 
     const user = await userRepository.findByEmail(input.email);
 
     if (!user) {
-      console.info(`forgot_password_unknown_email email=${input.email}`);
+      logger.info(
+        {
+          event: 'forgot_password_unknown_email',
+          email: input.email,
+        },
+        'Forgot-password request did not match a known user.',
+      );
       return;
     }
 
@@ -420,7 +545,14 @@ export class AuthService {
       rawToken,
     );
 
-    console.info(`password_reset_email_sent email=${user.email}`);
+    logger.info(
+      {
+        event: 'password_reset_email_sent',
+        email: user.email,
+        userId: user.id,
+      },
+      'Password reset email recorded.',
+    );
   }
 
   public async resetPassword(input: ResetPasswordInput): Promise<void> {
@@ -430,17 +562,38 @@ export class AuthService {
       const passwordResetToken = await passwordResetTokenRepository.findByTokenHash(tokenHash, manager);
 
       if (!passwordResetToken) {
-        console.warn('password_reset_token_invalid reason=not_found');
+        logger.warn(
+          {
+            event: 'password_reset_token_invalid',
+            reason: 'not_found',
+          },
+          'Password reset token invalid.',
+        );
         throw this.buildInvalidPasswordResetTokenError();
       }
 
       if (passwordResetToken.usedAt) {
-        console.warn(`password_reset_token_invalid reason=used tokenId=${passwordResetToken.id}`);
+        logger.warn(
+          {
+            event: 'password_reset_token_invalid',
+            reason: 'used',
+            tokenId: passwordResetToken.id,
+            userId: passwordResetToken.userId,
+          },
+          'Password reset token invalid.',
+        );
         throw this.buildInvalidPasswordResetTokenError();
       }
 
       if (passwordResetToken.expiresAt.getTime() <= Date.now()) {
-        console.warn(`password_reset_token_expired tokenId=${passwordResetToken.id}`);
+        logger.warn(
+          {
+            event: 'password_reset_token_expired',
+            tokenId: passwordResetToken.id,
+            userId: passwordResetToken.userId,
+          },
+          'Password reset token expired.',
+        );
         throw this.buildInvalidPasswordResetTokenError();
       }
 
@@ -471,10 +624,21 @@ export class AuthService {
       };
     });
 
-    console.info(
-      `password_reset_refresh_tokens_revoked userId=${resetResult.userId} count=${resetResult.revokedRefreshTokenCount}`,
+    logger.info(
+      {
+        event: 'password_reset_refresh_tokens_revoked',
+        userId: resetResult.userId,
+        revokedRefreshTokenCount: resetResult.revokedRefreshTokenCount,
+      },
+      'Refresh tokens revoked after password reset.',
     );
-    console.info(`password_reset_success userId=${resetResult.userId}`);
+    logger.info(
+      {
+        event: 'password_reset_success',
+        userId: resetResult.userId,
+      },
+      'Password reset successful.',
+    );
   }
 
   private signAccessToken(user: User): string {

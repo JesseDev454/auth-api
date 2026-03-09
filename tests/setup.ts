@@ -5,6 +5,7 @@ import { Client } from 'pg';
 import { AppDataSource } from '../src/config/database';
 import { env } from '../src/config/env';
 import { seedDefaultRoles } from '../src/database/seeds/seedRoles';
+import { clearBufferedTestLogs } from '../src/utils/logger';
 
 const APP_TABLES = [
   'refresh_tokens',
@@ -56,6 +57,7 @@ const silenceConsole = (): void => {
 
 beforeAll(async () => {
   silenceConsole();
+  clearBufferedTestLogs();
   await ensureTestDatabaseExists();
 
   if (!AppDataSource.isInitialized) {
@@ -69,6 +71,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   jest.restoreAllMocks();
   silenceConsole();
+  clearBufferedTestLogs();
 
   if (!AppDataSource.isInitialized) {
     await AppDataSource.initialize();
@@ -79,6 +82,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   jest.restoreAllMocks();
+  clearBufferedTestLogs();
 
   if (AppDataSource.isInitialized) {
     await AppDataSource.destroy();

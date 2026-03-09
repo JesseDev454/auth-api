@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { logger } from '../utils/logger';
 
 interface PasswordResetRecipient {
   email: string;
@@ -19,6 +20,23 @@ export const sendPasswordResetEmail = async (
     'This link expires in 1 hour.',
   ].join('\n');
 
-  console.info(`Password reset email sent to ${user.email}: ${resetLink}`);
-  console.info(body);
+  logger.info(
+    {
+      event: 'password_reset_email_sent',
+      email: user.email,
+    },
+    'Password reset email dispatched.',
+  );
+
+  if (env.nodeEnv !== 'production') {
+    logger.info(
+      {
+        event: 'password_reset_email_preview',
+        email: user.email,
+        resetLink,
+        body,
+      },
+      'Password reset email preview generated.',
+    );
+  }
 };

@@ -3,10 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 if (process.env.NODE_ENV === 'test') {
-  dotenv.config({
-    path: '.env.test',
-    override: true,
-  });
+  dotenv.config({ path: '.env.test' });
+  dotenv.config({ path: '.env.test.local', override: true });
 }
 
 type NodeEnv = 'development' | 'test' | 'production';
@@ -43,6 +41,10 @@ export const env = {
     database: getStringEnv('DB_NAME'),
   },
   appBaseUrl: getStringEnv('APP_BASE_URL', 'https://yourapp.com'),
+  logLevel: getStringEnv(
+    'LOG_LEVEL',
+    process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  ),
   jwt: {
     accessSecret: getStringEnv('JWT_ACCESS_SECRET'),
     refreshSecret: getStringEnv('JWT_REFRESH_SECRET'),

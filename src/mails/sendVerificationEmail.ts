@@ -1,4 +1,5 @@
 import { env } from '../config/env';
+import { logger } from '../utils/logger';
 
 interface VerificationRecipient {
   email: string;
@@ -19,6 +20,23 @@ export const sendVerificationEmail = async (
     'This link expires in 24 hours.',
   ].join('\n');
 
-  console.info(`Verification email sent to ${user.email}: ${verificationLink}`);
-  console.info(body);
+  logger.info(
+    {
+      event: 'verification_email_sent',
+      email: user.email,
+    },
+    'Verification email dispatched.',
+  );
+
+  if (env.nodeEnv !== 'production') {
+    logger.info(
+      {
+        event: 'verification_email_preview',
+        email: user.email,
+        verificationLink,
+        body,
+      },
+      'Verification email preview generated.',
+    );
+  }
 };

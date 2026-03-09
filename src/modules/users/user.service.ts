@@ -2,6 +2,7 @@ import { User } from '../../entities/User';
 import { refreshTokenRepository } from '../../repositories/refreshToken.repository';
 import { userRepository } from '../../repositories/user.repository';
 import { AppError } from '../../utils/appError';
+import { logger } from '../../utils/logger';
 
 interface UserProfileResponse {
   id: string;
@@ -29,7 +30,13 @@ export class UserService {
   }
 
   public async getMe(userId: string): Promise<{ user: UserProfileResponse }> {
-    console.info(`Protected profile access for user ${userId}`);
+    logger.info(
+      {
+        event: 'protected_profile_access',
+        userId,
+      },
+      'Protected profile accessed.',
+    );
 
     const user = await userRepository.findById(userId);
 
@@ -43,7 +50,13 @@ export class UserService {
   }
 
   public async listSessions(userId: string): Promise<{ sessions: UserSessionResponse[] }> {
-    console.info(`session_list_requested userId=${userId}`);
+    logger.info(
+      {
+        event: 'session_list_requested',
+        userId,
+      },
+      'Session list requested.',
+    );
 
     const user = await userRepository.findById(userId);
 
@@ -74,8 +87,14 @@ export class UserService {
     }
 
     if (session.userId !== userId) {
-      console.warn(
-        `session_revoke_forbidden userId=${userId} sessionId=${sessionId} ownerUserId=${session.userId}`,
+      logger.warn(
+        {
+          event: 'session_revoke_forbidden',
+          userId,
+          sessionId,
+          ownerUserId: session.userId,
+        },
+        'Session revoke forbidden.',
       );
       throw new AppError(403, 'FORBIDDEN', 'Forbidden');
     }
@@ -84,8 +103,14 @@ export class UserService {
       await refreshTokenRepository.revoke(session.id);
     }
 
-    console.info(
-      `session_revoked userId=${userId} sessionId=${session.id} alreadyRevoked=${String(Boolean(session.revokedAt))}`,
+    logger.info(
+      {
+        event: 'session_revoked',
+        userId,
+        sessionId: session.id,
+        alreadyRevoked: Boolean(session.revokedAt),
+      },
+      'Session revoked.',
     );
   }
 
