@@ -10,11 +10,17 @@ import { env } from './env';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: env.db.host,
-  port: env.db.port,
-  username: env.db.username,
-  password: env.db.password,
-  database: env.db.database,
+  ...(env.db.url
+    ? {
+        url: env.db.url,
+      }
+    : {
+        host: env.db.host,
+        port: env.db.port,
+        username: env.db.username,
+        password: env.db.password,
+        database: env.db.database,
+      }),
   synchronize: false,
   logging: env.nodeEnv === 'development',
   entities: [Role, User, RefreshToken, EmailVerificationToken, PasswordResetToken],

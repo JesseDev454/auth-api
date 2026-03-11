@@ -223,6 +223,7 @@ The runtime configuration is documented in `.env.example`.
 | --- | --- |
 | `PORT` | HTTP port used by the API server |
 | `NODE_ENV` | Runtime mode: `development`, `test`, or `production` |
+| `DATABASE_URL` | Preferred PostgreSQL connection string for hosted platforms such as Render; overrides the individual `DB_*` variables when present |
 | `DB_HOST` | PostgreSQL host |
 | `DB_PORT` | PostgreSQL port |
 | `DB_NAME` | PostgreSQL database name |
@@ -234,6 +235,8 @@ The runtime configuration is documented in `.env.example`.
 | `LOG_LEVEL` | Pino log level such as `debug`, `info`, `warn`, or `error` |
 
 Never commit real secrets.
+
+For Render and similar hosted platforms, prefer setting `DATABASE_URL` from the managed Postgres service instead of manually copying `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD`.
 
 ## Testing
 
