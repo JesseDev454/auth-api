@@ -351,5 +351,8 @@ export const swaggerSpec = swaggerJSDoc({
       },
     },
   },
-  apis: [path.join(__dirname, '../modules/**/*.docs.{ts,js}')],
+  apis: [
+    path.join(process.cwd(), 'src/modules/**/*.docs.ts'),
+    path.join(process.cwd(), 'dist/modules/**/*.docs.js'),
+  ],
 });
