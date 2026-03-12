@@ -11,4 +11,4 @@ RUN npm run build
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "npm run db:setup && node dist/server.js"]
