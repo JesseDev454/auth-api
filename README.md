@@ -49,6 +49,12 @@ Auth API is a secure authentication backend designed for reuse across multiple a
 - GitHub Actions CI pipeline
 - Health monitoring endpoint
 
+## Email Delivery
+
+Email delivery is currently implemented as a development stub. Verification and password reset flows are fully wired through the backend, but the mail layer currently logs verification and reset links instead of sending them through a real email provider.
+
+This keeps the project self-contained for development, testing, local demos, and CI execution without requiring external infrastructure. Production deployments should integrate a real provider such as SMTP, Resend, SendGrid, or Amazon SES so end users can receive verification and password reset emails normally.
+
 ## Architecture
 
 ```text
